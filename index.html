@@ -738,7 +738,8 @@ function refText(ref, unit){
 function svgLineChart(hist, ref, opts){
   opts = opts||{};
   var w = opts.width||640, h = opts.height||220;
-  var padL=46,padR=18,padT=20,padB=30;
+  var showAllLabels = opts.showAllLabels!==undefined ? opts.showAllLabels : (h>=200);
+  var padL=46,padR=18,padT= showAllLabels?30:20,padB=30;
   var innerW=w-padL-padR, innerH=h-padT-padB;
   if(!hist.length) return '<div class="empty-state">Sin datos suficientes para graficar.</div>';
   var values = hist.map(function(p){return p.value;});
@@ -770,13 +771,21 @@ function svgLineChart(hist, ref, opts){
     return '<circle cx="'+xFor(i)+'" cy="'+yFor(p.value)+'" r="'+r+'" fill="'+col+'" stroke="var(--surface)" stroke-width="'+(isLast?2:1.5)+'"><title>'+fmtDate(p.date)+': '+fmtNum(p.value)+'</title></circle>';
   }).join('');
   var lastPt = hist[hist.length-1];
-  var lastLabel = '<text x="'+xFor(hist.length-1)+'" y="'+(yFor(lastPt.value)-13)+'" font-size="12.5" font-family=\'IBM Plex Mono\', monospace" text-anchor="middle" fill="var(--ink)" font-weight="700">'+fmtNum(lastPt.value)+'</text>';
+  var valueLabelsSvg;
+  if(showAllLabels){
+    valueLabelsSvg = hist.map(function(p,i){
+      var isLast = i===hist.length-1;
+      return '<text x="'+xFor(i)+'" y="'+(yFor(p.value)-(isLast?13:10))+'" font-size="'+(isLast?12.5:10.5)+'" font-family=\'IBM Plex Mono\', monospace" text-anchor="middle" fill="'+(isLast?'var(--ink)':'var(--ink-2)')+'" font-weight="'+(isLast?700:600)+'">'+fmtNum(p.value)+'</text>';
+    }).join('');
+  } else {
+    valueLabelsSvg = '<text x="'+xFor(hist.length-1)+'" y="'+(yFor(lastPt.value)-13)+'" font-size="12.5" font-family=\'IBM Plex Mono\', monospace" text-anchor="middle" fill="var(--ink)" font-weight="700">'+fmtNum(lastPt.value)+'</text>';
+  }
   var xLabels = hist.map(function(p,i){
     if(hist.length>6 && i%2===1 && i!==hist.length-1) return '';
     return '<text x="'+xFor(i)+'" y="'+(h-8)+'" font-size="10.5" text-anchor="middle" fill="var(--ink-3)">'+fmtDate(p.date).replace(/\s\d{4}$/,'')+'</text>';
   }).join('');
   return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Gráfico de evolución">'+gridSvg+bandRectSvg+
-    '<polyline points="'+linePts+'" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></polyline>'+dotsSvg+lastLabel+xLabels+'</svg>';
+    '<polyline points="'+linePts+'" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></polyline>'+dotsSvg+valueLabelsSvg+xLabels+'</svg>';
 }
 
 function miniSparkline(hist, ref){
