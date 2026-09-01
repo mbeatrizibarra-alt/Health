@@ -278,7 +278,8 @@ var CATS = {
   hepatica:{name:'Función Hepática', icon:'🧬'},
   metabolismo:{name:'Metabolismo', icon:'⚡'},
   tiroides:{name:'Tiroides', icon:'🦋'},
-  vitaminas:{name:'Vitaminas y Minerales', icon:'☀️'}
+  vitaminas:{name:'Vitaminas y Minerales', icon:'☀️'},
+  otros:{name:'Otros Marcadores', icon:'🔬'}
 };
 
 var CARD_GROUPS = [
@@ -287,7 +288,8 @@ var CARD_GROUPS = [
   {id:'renal', name:'Función Renal', icon:'🧪', cats:['renal']},
   {id:'hepatica', name:'Función Hepática', icon:'🧬', cats:['hepatica']},
   {id:'tiroides', name:'Tiroides', icon:'🦋', cats:['tiroides']},
-  {id:'vitaminas', name:'Vitaminas y Minerales', icon:'☀️', cats:['vitaminas']}
+  {id:'vitaminas', name:'Vitaminas y Minerales', icon:'☀️', cats:['vitaminas']},
+  {id:'otros', name:'Otros Marcadores', icon:'🔬', cats:['otros']}
 ];
 
 var INDICATORS = [
@@ -319,7 +321,8 @@ var INDICATORS = [
  {id:'vitamina_b12', name:'Vitamina B12', category:'vitaminas', unit:'pg/mL', aliases:['B12','Cobalamina'], ref:{def:{min:200,max:900}}, desc:"Vitamina esencial para la formación de glóbulos rojos y el sistema nervioso.", descFull:"La vitamina B12 es necesaria para producir glóbulos rojos sanos y para el correcto funcionamiento del sistema nervioso. Se obtiene principalmente de alimentos de origen animal, por lo que niveles bajos son más frecuentes en dietas vegetarianas o veganas estrictas, o en personas con dificultad para absorberla."},
  {id:'hierro', name:'Hierro', category:'vitaminas', unit:'µg/dL', aliases:['Fe','Hierro Sérico'], ref:{M:{min:65,max:175}, F:{min:50,max:170}}, desc:"Mineral esencial para producir hemoglobina y transportar oxígeno.", descFull:"El hierro es un mineral esencial para producir hemoglobina, la proteína que transporta oxígeno en la sangre. Niveles bajos pueden estar relacionados con anemia por deficiencia de hierro, mientras que niveles muy altos pueden asociarse con una sobrecarga de hierro en el cuerpo."},
  {id:'ferritina', name:'Ferritina', category:'vitaminas', unit:'ng/mL', aliases:[], ref:{M:{min:24,max:336}, F:{min:11,max:307}}, desc:"Proteína que almacena hierro; refleja las reservas de hierro del cuerpo.", descFull:"La ferritina es la proteína que almacena el hierro dentro de las células, por lo que sus niveles reflejan cuánto hierro tiene guardado el cuerpo como reserva. Es uno de los primeros valores en bajar cuando comienza una deficiencia de hierro, incluso antes de que la hemoglobina se vea afectada."},
- {id:'calcio', name:'Calcio', category:'vitaminas', unit:'mg/dL', aliases:['Ca','Calcio Sérico'], ref:{def:{min:8.5,max:10.5}}, desc:"Mineral esencial para huesos, músculos y la función nerviosa.", descFull:"El calcio es un mineral esencial para la formación de huesos y dientes, la contracción muscular y la transmisión de señales nerviosas. Su nivel en sangre está regulado de forma muy estricta por el cuerpo (con ayuda de la vitamina D y otras hormonas), por lo que las alteraciones pueden reflejar problemas óseos, renales o de las glándulas paratiroides, entre otras causas."}
+ {id:'calcio', name:'Calcio', category:'vitaminas', unit:'mg/dL', aliases:['Ca','Calcio Sérico'], ref:{def:{min:8.5,max:10.5}}, desc:"Mineral esencial para huesos, músculos y la función nerviosa.", descFull:"El calcio es un mineral esencial para la formación de huesos y dientes, la contracción muscular y la transmisión de señales nerviosas. Su nivel en sangre está regulado de forma muy estricta por el cuerpo (con ayuda de la vitamina D y otras hormonas), por lo que las alteraciones pueden reflejar problemas óseos, renales o de las glándulas paratiroides, entre otras causas."},
+ {id:'psa', name:'PSA (Antígeno Prostático)', category:'otros', unit:'ng/mL', aliases:['Antígeno Prostático Específico','PSA Total','Prostate-Specific Antigen'], ref:{M:{min:0,max:4.0}}, desc:"Proteína producida por la próstata; se usa en la evaluación de la salud prostática en hombres.", descFull:"El PSA (antígeno prostático específico) es una proteína producida por la próstata que puede elevarse por distintas razones: el crecimiento benigno de la próstata (algo común con la edad), inflamación o infección, y con menor frecuencia cáncer de próstata. Un valor elevado no es por sí mismo un diagnóstico — suele requerir seguimiento en el tiempo y, según el caso, estudios adicionales interpretados por un urólogo."}
 ];
 var IND_BY_ID = {};
 INDICATORS.forEach(function(i){ IND_BY_ID[i.id]=i; });
@@ -1325,6 +1328,9 @@ var uploadDraft = null;
 function newDraft(memberId){
   return {memberId:memberId, examName:'Examen General', lab:'', date: new Date().toISOString().slice(0,10), fileName:'', file:null, rows:[]};
 }
+function setDraftFieldFn(field, value){
+  if(uploadDraft) uploadDraft[field] = value;
+}
 
 function renderUploadWizard(memberId){
   if(!uploadDraft || uploadDraft.memberId!==memberId) uploadDraft = newDraft(memberId);
@@ -1338,11 +1344,11 @@ function renderUploadWizard(memberId){
         '<select onchange="App.changeDraftMember(this.value)">'+MEMBERS.map(function(x){return '<option value="'+x.id+'"'+(x.id===memberId?' selected':'')+'>'+x.name+'</option>';}).join('')+'</select>'+
       '</div>'+
       '<div class="formrow"><label>Tipo de examen</label>'+
-        '<select id="draft-examname" onchange="uploadDraft.examName=this.value;">'+
+        '<select id="draft-examname" onchange="App.setDraftField(\'examName\',this.value)">'+
           ['Examen General','Perfil Metabólico','Perfil Lipídico','Chequeo Anual'].map(function(t){return '<option'+(d.examName===t?' selected':'')+'>'+t+'</option>';}).join('')+
         '</select></div>'+
-      '<div class="formrow"><label>Fecha del examen</label><input type="date" id="draft-date" value="'+d.date+'" onchange="uploadDraft.date=this.value;"></div>'+
-      '<div class="formrow"><label>Laboratorio</label><input type="text" id="draft-lab" placeholder="Ej. Laboratorio Central Quito" value="'+escapeHtml(d.lab)+'" onchange="uploadDraft.lab=this.value;"></div>'+
+      '<div class="formrow"><label>Fecha del examen</label><input type="date" id="draft-date" value="'+d.date+'" onchange="App.setDraftField(\'date\',this.value)"></div>'+
+      '<div class="formrow"><label>Laboratorio</label><input type="text" id="draft-lab" placeholder="Ej. Laboratorio Central Quito" value="'+escapeHtml(d.lab)+'" onchange="App.setDraftField(\'lab\',this.value)"></div>'+
       '<div class="formrow"><label>Archivo (PDF)</label>'+
         '<input type="file" accept="application/pdf,image/png,image/jpeg" onchange="App.pickFile(this)">'+
         (d.fileName? '<span class="faint" style="font-size:12px;">Seleccionado: '+escapeHtml(d.fileName)+'</span>':'')+
@@ -1354,11 +1360,12 @@ function renderUploadWizard(memberId){
 
 function simulateExtraction(memberId, examName){
   var m = memberById(memberId);
+  var allIds = INDICATORS.map(function(i){ return i.id; });
   var templates = {
-    'Examen General':['hemoglobina','hematocrito','eritrocitos','leucocitos','plaquetas','colesterol_total','ldl','hdl','trigliceridos','creatinina','glucosa','tsh','vitamina_d'],
+    'Examen General': allIds,
     'Perfil Metabólico':['glucosa','hba1c','insulina','colesterol_total','ldl','hdl','trigliceridos'],
     'Perfil Lipídico':['colesterol_total','ldl','hdl','trigliceridos'],
-    'Chequeo Anual':['hemoglobina','hematocrito','colesterol_total','ldl','hdl','trigliceridos','creatinina','tgo_ast','tgp_alt','glucosa','hba1c','tsh','vitamina_d','vitamina_b12','ferritina']
+    'Chequeo Anual': allIds
   };
   var ids = templates[examName] || templates['Examen General'];
   return ids.map(function(id){
@@ -1394,7 +1401,7 @@ function renderValidationScreen(memberId){
   var m = memberById(memberId);
   var d = uploadDraft;
   var rowsHtml = d.rows.map(function(r,idx){ return validationRowHtml(r, idx); }).join('');
-  return disclaimerBar('Diferentes laboratorios usan formatos distintos: revisa y corrige antes de guardar. Ningún dato se almacena hasta que confirmes.')+
+  return disclaimerBar('Esta lista es una sugerencia inicial, no una lectura real de tu PDF: elimina (🗑️) los indicadores que tu informe no incluya, corrige los valores para que coincidan con tu reporte, y usa "+ Agregar indicador manualmente" para cualquiera que falte. Ningún dato se almacena hasta que confirmes.')+
     '<div class="stepper"><div class="step done"></div><div class="step done"></div><div class="step active"></div></div>'+
     '<h2 style="margin-top:0;">Validar información extraída</h2>'+
     '<div class="faint" style="font-size:13px;margin-bottom:16px;">'+m.name+' · '+d.examName+' · '+fmtDate(d.date)+(d.lab?(' · '+d.lab):'')+'</div>'+
@@ -1962,6 +1969,7 @@ window.App = {
   viewPdf: viewPdfFn,
   pickFile: pickFileFn,
   changeDraftMember: changeDraftMemberFn,
+  setDraftField: setDraftFieldFn,
   runExtraction: runExtractionFn,
   updateRow: updateRowFn,
   rowIndicatorChange: rowIndicatorChangeFn,
