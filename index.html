@@ -784,24 +784,38 @@ function svgLineChart(hist, ref, opts){
   function yFor(v){ return padT + innerH - ((v-lo)/(hi-lo))*innerH; }
 
   var bandRectSvg='';
+  var yTop = padT, yBot = padT+innerH;
   if(ref.min!==null || ref.max!==null){
-    var yTop = ref.max!==null? yFor(ref.max): padT;
-    var yBot = ref.min!==null? yFor(ref.min): padT+innerH;
+    yTop = ref.max!==null? yFor(ref.max): padT;
+    yBot = ref.min!==null? yFor(ref.min): padT+innerH;
     bandRectSvg = '<rect x="'+padL+'" y="'+yTop+'" width="'+innerW+'" height="'+Math.max(0,yBot-yTop)+'" fill="var(--accent-soft)" opacity="0.6" rx="4"></rect>'+
       (detailed ? '<text x="'+(padL+innerW-4)+'" y="'+(yTop+12)+'" font-size="10" text-anchor="end" fill="var(--accent)" font-weight="700">rango esperado</text>' : '');
   }
 
   /* Grilla horizontal (hairline, recesiva) +, en vista detallada, sus valores en el eje Y
-     para que el lector tenga referencia numérica sin necesidad de una etiqueta por punto. */
+     para que el lector tenga referencia numérica sin necesidad de una etiqueta por punto.
+     Los límites del rango esperado (los números que reporta el laboratorio, ref.min/
+     ref.max) se imprimen en ese mismo margen del eje —no adentro del área de datos—
+     resaltados en el color de acento, para que se pueda ver de inmediato si un punto
+     quedó por encima o por debajo sin que choquen con las etiquetas de los puntos. */
   var gridSvg='', yTicksSvg='';
+  var refBoundaries = [];
+  if(detailed){
+    if(ref.max!==null) refBoundaries.push({y:yTop, v:ref.max});
+    if(ref.min!==null) refBoundaries.push({y:yBot, v:ref.min});
+  }
   for(var g=0; g<=2; g++){
     var gy = padT + innerH*g/2;
     gridSvg += '<line x1="'+padL+'" y1="'+gy+'" x2="'+(padL+innerW)+'" y2="'+gy+'" stroke="var(--border)" stroke-width="1"></line>';
     if(detailed){
       var tickVal = hi - (hi-lo)*g/2;
-      yTicksSvg += '<text x="'+(padL-8)+'" y="'+(gy+3.5)+'" font-size="10" text-anchor="end" fill="var(--ink-3)">'+fmtNum(tickVal)+'</text>';
+      var nearBoundary = refBoundaries.some(function(rb){ return Math.abs(rb.y-gy) < 9; });
+      if(!nearBoundary) yTicksSvg += '<text x="'+(padL-8)+'" y="'+(gy+3.5)+'" font-size="10" text-anchor="end" fill="var(--ink-3)">'+fmtNum(tickVal)+'</text>';
     }
   }
+  refBoundaries.forEach(function(rb){
+    yTicksSvg += '<text x="'+(padL-8)+'" y="'+(rb.y+3.5)+'" font-size="10" text-anchor="end" fill="var(--accent)" font-weight="700">'+fmtNum(rb.v)+'</text>';
+  });
 
   /* Color = estado, no identidad: cada punto se clasifica (dentro de rango / cerca del
      límite / fuera de rango / atención prioritaria) con el mismo motor que ya usan los
