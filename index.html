@@ -221,6 +221,9 @@
   .chart-tip.show{ opacity:1; }
   .chart-tip .tip-val{ font-size:14px; font-weight:700; }
   .chart-tip .tip-meta{ opacity:.78; margin-top:2px; }
+  .chart-legend{ display:flex; flex-wrap:wrap; gap:14px; margin-top:10px; padding-top:10px; border-top:1px solid var(--border); }
+  .chart-legend-item{ display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-2); font-weight:600; }
+  .chart-legend-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; flex:none; }
   .tabs{ display:flex; gap:6px; border-bottom:1px solid var(--border); margin-bottom:18px; flex-wrap:wrap; }
   .tab{ padding:9px 4px; margin-bottom:-1px; border-bottom:2px solid transparent; color:var(--ink-3); font-weight:700; font-size:13.5px; cursor:pointer; background:none; border-top:none; border-left:none; border-right:none; }
   .tab.active{ color:var(--accent); border-bottom-color:var(--accent); }
@@ -800,11 +803,21 @@ function svgLineChart(hist, ref, opts){
     }
   }
 
-  var linePts = hist.map(function(p,i){ return xFor(i)+','+yFor(p.value); });
-  var areaSvg = '';
-  if(detailed){
-    var areaPath = 'M '+xFor(0)+' '+(padT+innerH)+' L '+linePts.join(' L ')+' L '+xFor(hist.length-1)+' '+(padT+innerH)+' Z';
-    areaSvg = '<path d="'+areaPath+'" fill="var(--accent)" fill-opacity="0.1" stroke="none"></path>';
+  /* Color = estado, no identidad: cada punto se clasifica (dentro de rango / cerca del
+     límite / fuera de rango / atención prioritaria) con el mismo motor que ya usan los
+     pills y los Insights, y ese color pinta el punto, el tramo de línea que llega a él
+     y su franja de área — así el óptimo se ve verde y lo fuera de rango se ve rojo/
+     naranja de un vistazo, sin tener que leer cada cifra. */
+  var levels = hist.map(function(p,i){ return classifyPoint(p.value, ref, hist.slice(0,i+1), computeTrend(hist.slice(0,i+1))); });
+
+  var lineSegSvg='', areaSvg='';
+  for(var i=0;i<hist.length-1;i++){
+    var x1=xFor(i), y1=yFor(hist[i].value), x2=xFor(i+1), y2=yFor(hist[i+1].value);
+    var segColor = LEVEL_META[levels[i+1]].color;
+    lineSegSvg += '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+segColor+'" stroke-width="2" stroke-linecap="round"></line>';
+    if(detailed){
+      areaSvg += '<path d="M '+x1+' '+y1+' L '+x2+' '+y2+' L '+x2+' '+(padT+innerH)+' L '+x1+' '+(padT+innerH)+' Z" fill="'+segColor+'" fill-opacity="0.09" stroke="none"></path>';
+    }
   }
 
   /* Etiquetado selectivo: nunca un número sobre cada punto. Solo se marca el último
@@ -821,8 +834,8 @@ function svgLineChart(hist, ref, opts){
     var isLast = i===lastIdx;
     var isExtreme = markExtremes && (i===maxIdx || i===minIdx) && !isLast;
     var r = isLast? 6:4;
-    var lvl = classifyPoint(p.value, ref, hist.slice(0,i+1), computeTrend(hist.slice(0,i+1)));
-    var col = 'var('+({optimo:'--stable',seguimiento:'--watch',fuera:'--out',atencion:'--alert',sinrango:'--neutral-range'}[lvl])+')';
+    var lvl = levels[i];
+    var col = LEVEL_META[lvl].color;
     var cx = xFor(i), cy = yFor(p.value);
     dotsSvg += '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="'+col+'" stroke="var(--surface)" stroke-width="2"></circle>';
     if(isLast || isExtreme){
@@ -832,7 +845,7 @@ function svgLineChart(hist, ref, opts){
     }
     if(detailed){
       hitSvg += '<circle cx="'+cx+'" cy="'+cy+'" r="14" fill="transparent" tabindex="0" style="cursor:pointer;outline:none;" '+
-        'data-date="'+escapeHtml(fmtDate(p.date))+'" data-value="'+escapeHtml(fmtNum(p.value))+'" data-unit="'+escapeHtml(unit)+'" '+
+        'data-date="'+escapeHtml(fmtDate(p.date))+'" data-value="'+escapeHtml(fmtNum(p.value))+'" data-unit="'+escapeHtml(unit)+'" data-level="'+escapeHtml(LEVEL_META[lvl].shortLabel)+'" '+
         'onmouseenter="App.chartTip(event,this)" onmousemove="App.chartTip(event,this)" onmouseleave="App.hideChartTip()" '+
         'onfocus="App.chartTip(event,this)" onblur="App.hideChartTip()"></circle>';
     }
@@ -843,10 +856,25 @@ function svgLineChart(hist, ref, opts){
     return '<text x="'+xFor(i)+'" y="'+(h-8)+'" font-size="10" text-anchor="middle" fill="var(--ink-3)">'+fmtDateAxis(p.date)+'</text>';
   }).join('');
 
-  return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Gráfico de evolución">'+
-    gridSvg+yTicksSvg+bandRectSvg+areaSvg+
-    '<polyline points="'+linePts.join(' ')+'" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></polyline>'+
+  var svg = '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Gráfico de evolución, coloreado según si cada resultado está dentro o fuera del rango de referencia">'+
+    gridSvg+yTicksSvg+bandRectSvg+areaSvg+lineSegSvg+
     dotsSvg+labelsSvg+xLabels+hitSvg+'</svg>';
+
+  /* El color ahora es de ESTADO (no de identidad de serie), así que —como pide la guía
+     de visualización— nunca va solo: siempre viaja con un punto de color + una etiqueta
+     de texto en una leyenda, y solo se listan los estados que de verdad aparecen en el
+     historial mostrado. */
+  var legendHtml = '';
+  if(detailed){
+    var order = ['optimo','seguimiento','fuera','atencion','sinrango'];
+    var present = order.filter(function(lv){ return levels.indexOf(lv)>-1; });
+    if(present.length>1 || (present.length===1 && present[0]!=='optimo')){
+      legendHtml = '<div class="chart-legend">'+present.map(function(lv){
+        return '<span class="chart-legend-item"><span class="chart-legend-dot" style="background:'+LEVEL_META[lv].color+'"></span>'+LEVEL_META[lv].shortLabel+'</span>';
+      }).join('')+'</div>';
+    }
+  }
+  return svg + legendHtml;
 }
 
 function miniSparkline(hist, ref){
@@ -862,13 +890,14 @@ function chartTipFn(evt, el){
   var value = el.getAttribute('data-value')||'';
   var unit = el.getAttribute('data-unit')||'';
   var date = el.getAttribute('data-date')||'';
+  var level = el.getAttribute('data-level')||'';
   tip.innerHTML = '';
   var vEl = document.createElement('div');
   vEl.className = 'tip-val';
   vEl.textContent = value + (unit? (' '+unit) : '');
   var mEl = document.createElement('div');
   mEl.className = 'tip-meta';
-  mEl.textContent = date;
+  mEl.textContent = date + (level? (' · '+level) : '');
   tip.appendChild(vEl);
   tip.appendChild(mEl);
   var x = (evt && evt.clientX!==undefined) ? evt.clientX : 0;
